@@ -6,9 +6,6 @@ from recipes.models import Ingredient
 
 
 class Command(BaseCommand):
-    """
-    Команда для загрузки ингредиентов из JSON-файла в базу данных.
-    """
     help = 'Загрузка ингредиентов из JSON-файла'
 
     def handle(self, *args, **kwargs):
@@ -20,20 +17,20 @@ class Command(BaseCommand):
                 data = json.load(file)
 
             # Используем list comprehension для создания списка ингредиентов
-            ingredients_to_create = [
-                Ingredient(
-                    name=item['name'],
-                    measurement_unit=item['measurement_unit']
-                )
+                ingredients_to_create = [
+                Ingredient(**item)
                 for item in data
-            ]
+                ]  
 
             # Массовое создание новых ингредиентов
-            Ingredient.objects.bulk_create(
+            created_ingredients = Ingredient.objects.bulk_create(
                 ingredients_to_create,
                 ignore_conflicts=True
             )
-            self.stdout.write(self.style.SUCCESS('Данные успешно загружены!'))
+            self.stdout.write(self.style.SUCCESS(
+                'Данные успешно загружены!'
+                f'Добавлено записей: {len(created_ingredients)}'                                 
+                ))
 
         except Exception as e:
             # Добавляем имя файла в сообщение об ошибке

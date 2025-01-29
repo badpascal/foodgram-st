@@ -1,8 +1,3 @@
-"""
-Модуль, содержащий сериализаторы для работы с моделями пользователей, рецептов,
-ингредиентов и аватарок.
-"""
-
 import base64
 from django.core.files.base import ContentFile
 from django.core.validators import MinValueValidator
@@ -18,9 +13,6 @@ User = get_user_model()
 
 
 class Base64ImageField(serializers.ImageField):
-    """
-    Для работы с изображениями, закодированными в формате base64.
-    """
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
             format, imgstr = data.split(';base64,')
@@ -29,10 +21,7 @@ class Base64ImageField(serializers.ImageField):
         return super().to_internal_value(data)
 
 
-class CustomUserSerializer(serializers.ModelSerializer):
-    """
-    Сериализатор для модели пользователя с дополнительным полем is_subscribed.
-    """
+class UserSerializer(serializers.ModelSerializer):
     is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -49,13 +38,10 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     def get_is_subscribed(self, author):
         user = self.context['request'].user
-        return user.is_authenticated and user.users.filter(author=author).exists()
+        return user.is_authenticated and user.subscriptions.filter(author=author).exists()
 
 
 class AvatarSerializer(serializers.ModelSerializer):
-    """
-    Сериализатор для обновления аватара пользователя.
-    """
     avatar = Base64ImageField(required=True)
 
     class Meta:
@@ -64,19 +50,13 @@ class AvatarSerializer(serializers.ModelSerializer):
 
 
 class RecipeBasicSerializer(serializers.ModelSerializer):
-    """
-    Базовый сериализатор для модели рецепта.
-    """
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
         read_only_fields = fields
 
 
-class UserDetailSerializer(CustomUserSerializer):
-    """
-    Сериализатор для отображения детальной информации о пользователе.
-    """
+class UserDetailSerializer(UserSerializer):
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.IntegerField(source='recipes.count', read_only=True)
 
@@ -100,18 +80,12 @@ class UserDetailSerializer(CustomUserSerializer):
 
 
 class IngredientSerializer(serializers.ModelSerializer):
-    """
-    Сериализатор для модели ингредиента.
-    """
     class Meta:
         model = Ingredient
         fields = '__all__'
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
-    """
-    Сериализатор для связи между рецептами и ингредиентами.
-    """
     id = serializers.PrimaryKeyRelatedField(queryset=Ingredient.objects.all())
     name = serializers.CharField(source='ingredient.name', read_only=True)
     measurement_unit = serializers.CharField(source='ingredient.measurement_unit', read_only=True)
@@ -126,12 +100,9 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 
 class RecipeSerializer(serializers.ModelSerializer):
-    """
-    Сериализатор для модели рецепта с дополнительными полями.
-    """
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
-    author = CustomUserSerializer(read_only=True)
+    author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientSerializer(source='recipe_ingredients', many=True, required=True)
     image = Base64ImageField(allow_null=True)
     cooking_time = serializers.IntegerField(validators=[MinValueValidator(1)])
@@ -168,14 +139,14 @@ class RecipeSerializer(serializers.ModelSerializer):
     def save_recipe_ingredients(self, recipe, ingredients_data):
         recipe.recipe_ingredients.all().delete()
 
-        RecipeIngredient.objects.bulk_create([
+        RecipeIngredient.objects.bulk_create(
             RecipeIngredient(
                 recipe=recipe,
                 ingredient=ingredient_data['id'],
                 amount=ingredient_data['amount']
             )
             for ingredient_data in ingredients_data
-        ])
+        )
 
     def create(self, validated_data):
         ingredients_data = validated_data.pop('recipe_ingredients')

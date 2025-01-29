@@ -1,6 +1,3 @@
-"""
-Модуль для генерации списка покупок на основе предоставленных ингредиентов и рецептов.
-"""
 from datetime import datetime
 
 # Заготовки для текста
@@ -12,10 +9,6 @@ EMPTY_LIST_MESSAGE = "Список покупок пуст."
 
 
 def render_shopping_list(ingredients, recipes):
-    """
-    Генерирует строку, представляющую список покупок на основе
-    предоставленных ингредиентов и рецептов.
-    """
     date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     if not ingredients:
@@ -23,16 +16,16 @@ def render_shopping_list(ingredients, recipes):
 
     product_lines = [
         PRODUCT_ITEM.format(
-            index=i + 1,
+            index=i,
             name=ingredient["name"].capitalize(),
             amount=ingredient["amount"],
             unit=ingredient["measurement_unit"]
         )
-        for i, ingredient in enumerate(ingredients)
+        for i, ingredient in enumerate(ingredients, start=1)
     ]
 
     recipe_lines = [
-        RECIPE_ITEM.format(recipe=recipe)
+        RECIPE_ITEM.format(recipe=recipe, author = recipe['author'])
         for recipe in recipes
     ]
 

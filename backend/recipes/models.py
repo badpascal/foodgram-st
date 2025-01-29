@@ -8,11 +8,7 @@ MIN_COOKING_TIME = 1
 MIN_AMOUNT = 1
 
 
-class CustomUser(AbstractUser):
-    """
-    Модель пользовательского профиля, расширяющая стандартную модель
-    пользователя Django.
-    """
+class User(AbstractUser):
     email = models.EmailField(
         max_length=254,
         unique=True,
@@ -23,11 +19,11 @@ class CustomUser(AbstractUser):
     username = models.CharField(max_length=150, unique=True, validators=[
         RegexValidator(
             regex=r'^[\w.@+-]+$',
-            message='Имя пользователя может содержать только'
+            message='Никнейм может содержать только'
                     'буквы, цифры, и символы: . @ + - _'
         )
     ],
-        verbose_name='Имя пользователя'
+        verbose_name='Никнейм'
     )
     # Поле для аватара
     avatar = models.ImageField(
@@ -46,9 +42,6 @@ class CustomUser(AbstractUser):
 
 
 class Ingredient(models.Model):
-    """
-    Модель для ингредиентов, используемых в рецептах.
-    """
     name = models.CharField(max_length=128, verbose_name='Название')
     measurement_unit = models.CharField(
         max_length=64,
@@ -70,9 +63,6 @@ class Ingredient(models.Model):
 
 
 class Recipe(models.Model):
-    """
-    Модель для рецептов.
-    """
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -108,9 +98,6 @@ class Recipe(models.Model):
 
 
 class RecipeIngredient(models.Model):
-    """
-    Модель для представления связи между рецептами и ингредиентами.
-    """
     recipe = models.ForeignKey(
         Recipe,
         related_name='recipe_ingredients',
@@ -139,10 +126,6 @@ class RecipeIngredient(models.Model):
 
 
 class AbstractRecipeRelation(models.Model):
-    """
-    Абстрактная модель для представления отношений между
-    пользователями и рецептами.
-    """
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -172,27 +155,18 @@ class AbstractRecipeRelation(models.Model):
 
 
 class FavoriteRecipe(AbstractRecipeRelation):
-    """
-    Модель для представления избранных рецептов пользователя.
-    """
     class Meta(AbstractRecipeRelation.Meta):
         verbose_name = 'избранный рецепт'
         verbose_name_plural = 'Избранные рецепты'
 
 
 class ShoppingCart(AbstractRecipeRelation):
-    """
-    Модель для представления рецептов, добавленных в корзину пользователем.
-    """
     class Meta(AbstractRecipeRelation.Meta):
         verbose_name = 'рецепт в корзине'
         verbose_name_plural = 'Рецепты в корзине'
 
 
 class Subscribe(models.Model):
-    """
-    Модель для представления подписки пользователя на другого пользователя.
-    """
     # Это пользователь, который совершает действие подписки
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

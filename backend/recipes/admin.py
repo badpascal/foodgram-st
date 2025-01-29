@@ -15,35 +15,23 @@ admin.site.empty_value_display = 'Не задано'
 
 # Модель Ingredient для вставки на страницу других моделей
 class IngredientInline(admin.StackedInline):
-    """
-    Класс для отображения ингредиентов на странице рецепта.
-    """
     model = RecipeIngredient
     extra = 0
     fields = ('ingredient', 'amount')
 
 
 class FavoriteRecipeInline(admin.TabularInline):
-    """
-    Класс для отображения избранных рецептов на странице пользователя.
-    """
     model = FavoriteRecipe
     extra = 0
 
 
 class ShoppingCartInline(admin.TabularInline):
-    """
-    Класс для отображения корзины покупок на странице пользователя.
-    """
     model = ShoppingCart
     extra = 0
 
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    """
-    Админ-класс для управления рецептами.
-    """
     # Поля, которые будут показаны на странице списка объектов
     list_display = (
         'id',
@@ -71,11 +59,11 @@ class RecipeAdmin(admin.ModelAdmin):
     def get_ingredients_html(self, recipe):
         ingredients = recipe.recipe_ingredients.all()
         ingredients_list = '<br>'.join(
-            f'{ingredient.ingredient.name} - {ingredient.amount} '
-            f'{ingredient.ingredient.measurement_unit}'
+            f'{ingredient.ingredient.name} - {ingredient.amount}
+            {ingredient.ingredient.measurement_unit}'
             for ingredient in ingredients
         )
-        return f'{ingredients_list}'
+        return ingredients_list
 
     # Метод для отображения изображения в HTML-формате
     @admin.display(description='Картинка')
@@ -86,42 +74,88 @@ class RecipeAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    """
-    Админ-класс для управления ингредиентами.
-    """
-    list_display = ('name', 'measurement_unit')
+    list_display = ('name', 'measurement_unit', 'recipe_count')
     search_fields = ('name', 'measurement_unit')
     list_filter = ('measurement_unit',)
+    
+    def recipe_count(self, obj):
+        return obj.recipe_set.count()
+    
+    recipe_count.short_description = 'Количество рецептов'
 
 
 @admin.register(FavoriteRecipe, ShoppingCart)
 class FavoriteShoppingCartAdmin(admin.ModelAdmin):
-    """
-    Админ-класс для управления избранными рецептами и корзиной покупок.
-    """
     list_display = ('user', 'recipe')
     search_fields = ('user__username', 'recipe__name')
 
+class RecipeFilter(admin.SimpleListFilter):
+    title = 'Есть рецепты'
+    parameter_name = 'has_recipes'
 
+    def lookups(self, request, model_admin):
+        return (
+            ('1', 'Есть'),
+            ('0', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(recipe__isnull=False).distinct()
+        if self.value() == '0':
+            return queryset.filter(recipe__isnull=True).distinct()
+        return queryset
+
+class SubscriptionFilter(admin.SimpleListFilter):
+    title = 'Есть подписки'
+    parameter_name = 'has_subscriptions'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('1', 'Есть'),
+            ('0', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(subscriptions__isnull=False).distinct()
+        if self.value() == '0':
+            return queryset.filter(subscriptions__isnull=True).distinct()
+        return queryset
+
+class FollowerFilter(admin.SimpleListFilter):
+    title = 'Есть подписчики'
+    parameter_name = 'has_followers'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('1', 'Есть'),
+            ('0', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(followers__isnull=False).distinct()
+        if self.value() == '0':
+            return queryset.filter(followers__isnull=True).distinct()
+        return queryset
+    
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    """
-    Админ-класс для управления пользователями.
-    """
     list_display = (
         'id',
         'username',
         'email',
         'full_name',
         'avatar',
-        'is_staff',
         'recipe_count',
         'subscription_count',
         'follower_count',
         'date_joined'
     )
     search_fields = ('username', 'email')
-    list_filter = ('date_joined', 'is_staff')
+    list_filter = ('date_joined', 'is_staff',
+                   RecipeFilter, SubscriptionFilter, FollowerFilter)
 
     @admin.display(description='ФИО')
     def full_name(self, user):
@@ -131,13 +165,13 @@ class UserAdmin(BaseUserAdmin):
     @mark_safe
     def avatar(self, user):
         if user.avatar_url:
-            return format_html(
+            return (
                 f'<img src="{user.avatar_url}" '
                 f'style="width: 50px; height: 50px; border-radius: 50%;" />'
             )
         return "No Avatar"
 
-    @admin.display(description='Число рецептов')
+    @admin.display(description='Рецепты')
     def recipe_count(self, user):
         return user.recipes.count()
 
@@ -148,6 +182,8 @@ class UserAdmin(BaseUserAdmin):
     @admin.display(description='Число подписчиков')
     def follower_count(self, user):
         return user.authors.count()
+    
+
 
 
 admin.site.register(Subscribe)

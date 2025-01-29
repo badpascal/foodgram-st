@@ -1,14 +1,10 @@
-"""
-Модуль, содержащий viewsets для работы с моделями
-"""
-
 from datetime import datetime
-from io import BytesIO
 
 from django.db.models import OuterRef, Exists, F, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.http import FileResponse
 
 from rest_framework import status, viewsets
@@ -38,7 +34,7 @@ from .serializers import (
     AvatarSerializer,
     RecipeBasicSerializer,
     UserDetailSerializer,
-    CustomUserSerializer
+    UserSerializer
 )
 
 from .renderers import render_shopping_list
@@ -47,9 +43,9 @@ from .renderers import render_shopping_list
 User = get_user_model()
 
 
-class CustomUserViewSet(UserViewSet):
+class UserViewSet(UserViewSet):
     queryset = User.objects.all()
-    serializer_class = CustomUserSerializer
+    serializer_class = UserSerializer
 
     @action(detail=False, methods=['put', 'delete'], url_path='me/avatar',
             permission_classes=[IsAuthenticated])
@@ -60,10 +56,7 @@ class CustomUserViewSet(UserViewSet):
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError(serializer.errors)
 
         user.avatar.delete(save=False)
 
@@ -80,17 +73,14 @@ class CustomUserViewSet(UserViewSet):
 
         if request.method == 'POST':
             if user == author:
-                return Response(
-                    {'error': 'Вы не можете подписаться на себя!'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                raise PermissionDenied('Вы не можете подписаться на себя!')
             subscription, created = Subscribe.objects.get_or_create(
                 user=user,
                 author=author
             )
 
             if not created:
-                return Response(
+                raise ValidationError(
                     {'error': f'Вы уже подписаны на пользователя {author}!'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
@@ -121,8 +111,8 @@ class CustomUserViewSet(UserViewSet):
 
         # Пагинация пользователей
         paginator = PageNumberPagination()
-        # По умолчанию по 10 объектов 
-        paginator.page_size = request.GET.get('limit', 10)
+        # По умолчанию 10 объектов на странице
+        paginator.page_size = request.GET.get('limit', 10**10)
         paginated_users = paginator.paginate_queryset(users, request)
 
         return paginator.get_paginated_response(
@@ -220,14 +210,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         # Используем функцию рендера для создания содержимого
         content = render_shopping_list(ingredients, recipes)
 
-        # Создаем поток BytesIO для передачи файла
-        buffer = BytesIO()
-        buffer.write(content.encode('utf-8'))
-        buffer.seek(0)
 
         # Возвращаем файл как ответ
         return FileResponse(
-            buffer,
+            content,
             as_attachment=True,
             filename=f'Shopping_cart_{datetime.now().strftime("%Y%m%d%H%M%S")}.txt'
         )
@@ -258,10 +244,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             recipe=recipe
         )
         if not created:
-            return Response(
-                {'error': error_message.format(recipe=recipe)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValidationError(error_message.format(recipe=recipe))
         serializer = RecipeBasicSerializer(recipe)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -273,11 +256,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def shopping_cart(self, request, pk):
-        recipe = get_object_or_404(Recipe, id=pk)
         return self.add_to_collection(
             model_class=ShoppingCart,
             user=request.user,
-            recipe=recipe,
+            recipe=get_object_or_404(Recipe, id=pk),
             error_message='Вы уже добавили рецепт {recipe} в список покупок!'
         )
 
@@ -303,8 +285,3 @@ class RecipeViewSet(viewsets.ModelViewSet):
         self.remove_from_collection(user, 'favoriterecipes', pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-def recipe_redirect_view(request, recipe_id):
-    
-    recipe = get_object_or_404(Recipe, id=recipe_id)
-    return redirect(f'/recipes/{recipe.id}/')
