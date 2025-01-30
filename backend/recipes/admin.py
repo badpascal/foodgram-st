@@ -59,8 +59,9 @@ class RecipeAdmin(admin.ModelAdmin):
     def get_ingredients_html(self, recipe):
         ingredients = recipe.recipe_ingredients.all()
         ingredients_list = '<br>'.join(
-            f'{ingredient.ingredient.name} - {ingredient.amount}
-            {ingredient.ingredient.measurement_unit}'
+            f'{ingredient.ingredient.name} - 
+    {ingredient.amount}
+    {ingredient.ingredient.measurement_unit}'
             for ingredient in ingredients
         )
         return ingredients_list
@@ -81,7 +82,7 @@ class IngredientAdmin(admin.ModelAdmin):
     def recipe_count(self, obj):
         return obj.recipe_set.count()
     
-    recipe_count.short_description = 'Количество рецептов'
+    recipe_count = 'Количество рецептов'
 
 
 @admin.register(FavoriteRecipe, ShoppingCart)
@@ -89,56 +90,51 @@ class FavoriteShoppingCartAdmin(admin.ModelAdmin):
     list_display = ('user', 'recipe')
     search_fields = ('user__username', 'recipe__name')
 
-class RecipeFilter(admin.SimpleListFilter):
+class BaseFilter(admin.SimpleListFilter):
+    title = ''
+    parameter_name = ''
+    
+    # Общий метод lookups
+    def lookups(self, request, model_admin):
+        return (
+            ('1', 'Есть'),
+            ('0', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() in self.filter_conditions:
+            return queryset.filter(**self.filter_conditions[self.value()]).distinct()
+        return queryset
+
+
+class RecipeFilter(BaseFilter):
     title = 'Есть рецепты'
     parameter_name = 'has_recipes'
+    
+    filter_conditions = {
+        '1': {'recipe__isnull': False},
+        '0': {'recipe__isnull': True},
+    }
 
-    def lookups(self, request, model_admin):
-        return (
-            ('1', 'Есть'),
-            ('0', 'Нет'),
-        )
 
-    def queryset(self, request, queryset):
-        if self.value() == '1':
-            return queryset.filter(recipe__isnull=False).distinct()
-        if self.value() == '0':
-            return queryset.filter(recipe__isnull=True).distinct()
-        return queryset
-
-class SubscriptionFilter(admin.SimpleListFilter):
+class SubscriptionFilter(BaseFilter):
     title = 'Есть подписки'
     parameter_name = 'has_subscriptions'
+    
+    filter_conditions = {
+        '1': {'subscriptions__isnull': False},
+        '0': {'subscriptions__isnull': True},
+    }
 
-    def lookups(self, request, model_admin):
-        return (
-            ('1', 'Есть'),
-            ('0', 'Нет'),
-        )
 
-    def queryset(self, request, queryset):
-        if self.value() == '1':
-            return queryset.filter(subscriptions__isnull=False).distinct()
-        if self.value() == '0':
-            return queryset.filter(subscriptions__isnull=True).distinct()
-        return queryset
-
-class FollowerFilter(admin.SimpleListFilter):
+class FollowerFilter(BaseFilter):
     title = 'Есть подписчики'
     parameter_name = 'has_followers'
-
-    def lookups(self, request, model_admin):
-        return (
-            ('1', 'Есть'),
-            ('0', 'Нет'),
-        )
-
-    def queryset(self, request, queryset):
-        if self.value() == '1':
-            return queryset.filter(followers__isnull=False).distinct()
-        if self.value() == '0':
-            return queryset.filter(followers__isnull=True).distinct()
-        return queryset
+    
+    filter_conditions = {
+        '1': {'followers__isnull': False},
+        '0': {'followers__isnull': True},
+    }
     
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):

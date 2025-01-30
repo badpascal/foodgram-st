@@ -11,15 +11,14 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         file_name = 'ingredients.json'  # Указываем имя файла
         try:
-            # Формирование относительного пути
             file_path = os.path.join(settings.BASE_DIR, 'data', file_name)
             with open(file_path, encoding='utf-8') as file:
                 data = json.load(file)
 
-            # Используем list comprehension для создания списка ингредиентов
+                # Используем list comprehension для создания списка ингредиентов
                 ingredients_to_create = [
-                Ingredient(**item)
-                for item in data
+                    Ingredient(**item)
+                    for item in data
                 ]  
 
             # Массовое создание новых ингредиентов
@@ -35,5 +34,5 @@ class Command(BaseCommand):
         except Exception as e:
             # Добавляем имя файла в сообщение об ошибке
             self.stdout.write(self.style.ERROR(
-                f'Произошла ошибка при обработке файла "{file_name}": {str(e)}')
+                f'Произошла ошибка при обработке файла "{file_name}": {e}')
             )

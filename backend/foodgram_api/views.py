@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.http import FileResponse
+from django.http import Http404
 
 from rest_framework import status, viewsets
 from rest_framework.pagination import (
@@ -16,7 +17,7 @@ from rest_framework.permissions import (
     IsAuthenticated, IsAuthenticatedOrReadOnly)
 from rest_framework.views import APIView
 
-from djoser.views import UserViewSet
+from djoser.views import UserViewSet as DjoserUserViewSet
 
 from recipes.models import (
     Recipe,
@@ -43,7 +44,7 @@ from .renderers import render_shopping_list
 User = get_user_model()
 
 
-class UserViewSet(UserViewSet):
+class UserViewSet(DjoserUserViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
@@ -53,10 +54,9 @@ class UserViewSet(UserViewSet):
         user = request.user
         if request.method == 'PUT':
             serializer = AvatarSerializer(user, data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            raise ValidationError(serializer.errors)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         user.avatar.delete(save=False)
 
@@ -73,7 +73,7 @@ class UserViewSet(UserViewSet):
 
         if request.method == 'POST':
             if user == author:
-                raise PermissionDenied('Вы не можете подписаться на себя!')
+                raise ValidationError('Вы не можете подписаться на себя!')
             subscription, created = Subscribe.objects.get_or_create(
                 user=user,
                 author=author
@@ -81,8 +81,7 @@ class UserViewSet(UserViewSet):
 
             if not created:
                 raise ValidationError(
-                    {'error': f'Вы уже подписаны на пользователя {author}!'},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {'error': f'Вы уже подписаны на пользователя {author}!'}
                 )
 
             # Если подписка была успешно создана
@@ -111,8 +110,8 @@ class UserViewSet(UserViewSet):
 
         # Пагинация пользователей
         paginator = PageNumberPagination()
-        # По умолчанию 10 объектов на странице
-        paginator.page_size = request.GET.get('limit', 10**10)
+
+        paginator.page_size = request.GET.get('limit', 6)
         paginated_users = paginator.paginate_queryset(users, request)
 
         return paginator.get_paginated_response(
@@ -210,8 +209,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
         # Используем функцию рендера для создания содержимого
         content = render_shopping_list(ingredients, recipes)
 
-
-        # Возвращаем файл как ответ
         return FileResponse(
             content,
             as_attachment=True,
@@ -224,10 +221,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         exists = Recipe.objects.filter(id=pk).exists()
 
         if not exists:
-            return Response(
-                {'detail': f'Рецепт {pk} не найден'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise Http404( f'Рецепт {pk} не найден')
 
         # Формируем короткую ссылку с использованием имени маршрута
         short_link = request.build_absolute_uri(reverse(
@@ -253,6 +247,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         get_object_or_404(
             getattr(user, collection_name), recipe_id=recipe_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def shopping_cart(self, request, pk):
@@ -267,7 +262,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def delete_shopping_cart(self, request, pk):
         user = request.user
         self.remove_from_collection(user, 'shoppingcarts', pk)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def favorite(self, request, pk):
@@ -283,5 +277,4 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def delete_favorite(self, request, pk):
         user = request.user
         self.remove_from_collection(user, 'favoriterecipes', pk)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 

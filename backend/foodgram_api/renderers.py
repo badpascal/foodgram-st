@@ -12,7 +12,7 @@ def render_shopping_list(ingredients, recipes):
     date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     if not ingredients:
-        return EMPTY_LIST_MESSAGE
+        return f"{EMPTY_LIST_MESSAGE}\nДата составления отчета: {date_now}"
 
     product_lines = [
         PRODUCT_ITEM.format(

@@ -9,4 +9,4 @@ def recipe_redirect_view(request, recipe_id):
     if recipe_exists:
         return redirect(f'/recipes/{recipe_id}/')
     else:
-        return JsonResponse({'message': 'Нет'}, status=404)
+        return JsonResponse({'message': 'Рецепт с id {recipe_id} не найден!'}, status=404)
